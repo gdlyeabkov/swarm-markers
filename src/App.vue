@@ -59,11 +59,13 @@
       }"
       width="100%"
       height="100vh"
+      @sizechange="sizechange"
+      @map-was-initialized="onInitMap"
     >
       <yandex-map-default-scheme-layer />
       <yandex-map-default-features-layer />
       <yandex-map-marker v-for="marker in markers" :key="marker.iconSrc" :settings="{ coordinates: marker.coordinates, draggable: true, iconRotate: '64' }" position="top-center left-center" ref="marker">
-        <div class="pin--wrap" :style="activeMarker === marker ? `background-color: #ccc; ${radius}` : marker.radius">
+        <div class="pin--wrap" :style="activeMarker === marker ? `background-color: #ccc; ${radius}` : radius(marker)">
           <img
             @mousedown="rotate($event, marker)"
             class="pin"
@@ -79,6 +81,7 @@
 <script>
 import { VueYandexMaps } from 'vue-yandex-maps';
 import { YandexMap, YandexMapDefaultSchemeLayer, YandexMapDefaultFeaturesLayer, YandexMapMarker} from 'vue-yandex-maps';
+import arc from 'svg-arc';
 export default {
   name: 'App',
   data: () => ({
@@ -110,11 +113,35 @@ export default {
         // send payload to backend
       }
     });
+    // setTimeout(() => {
+    //   alert(this.mapModel.events);
+    // }, 100);
   },
   methods: {
-    radius() {
-      const corner = this.getRndInteger(0, 360);
-      return `background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 500' transform='rotate(${corner})'%3E%3Ccircle fill='transparent' stroke='rgba(225, 225, 225, 0.4)' stroke-width='265' stroke-dashoffset='500' stroke-dasharray='calc((250 + 5) * 250 / 100) 250' cx='250' cy='250' r='100' /%3E%3C/svg%3E");`;
+    onInitMap() {
+      // alert("map init");
+    },
+    sizechange() {
+      // alert("size");
+    },
+    radius(marker) {
+      const sector = arc({
+        x: 250,
+        y: 250,
+        r: 500,
+        start: marker.angleStart,
+        end: marker.angleEnd,
+        // start: 0,
+        // end: 45,
+      });
+      /*
+       * rotated corner radius
+       */
+      return `background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 500' transform='rotate(${marker.rotate})'%3E%3Cpath fill='rgba(225, 225, 225, 0.6)' stroke='rgba(225, 225, 225, 0.6)' d='${sector}' /%3E%3C/svg%3E")`;
+      /*
+       * unrotated corner radius
+       */
+      // return `background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 500'%3E%3Cpath fill='rgba(225, 225, 225, 0.6)' stroke='rgba(225, 225, 225, 0.6)' d='${sector}' /%3E%3C/svg%3E")`;
     },
     getRndInteger(min, max) {
       return Math.floor(Math.random() * (max - min)) + min;
@@ -124,13 +151,18 @@ export default {
       this.activeMarker.draggable = !event.shiftKey;
     },
     drop(src) {
+      const angleStart = this.getRndInteger(0, 360);
+      const angleEnd = this.getRndInteger(angleStart, 360);
       this.markers.push({
         coordinates: [37.617644, 55.755819],
         iconSrc: src,
         onClick: () => {},
         draggable: true,
         rotate: 0,
-        radius: this.radius(),
+        // radius: this.radius(),
+        radius: "",
+        angleStart: angleStart,
+        angleEnd: angleEnd,
       });
     },
   },
@@ -139,6 +171,11 @@ export default {
     YandexMapDefaultSchemeLayer,
     YandexMapDefaultFeaturesLayer,
     YandexMapMarker,
+  },
+  watch: {
+    "$refs.map.zoom"() {
+      // alert(val);
+    },
   },
 }
 </script>
