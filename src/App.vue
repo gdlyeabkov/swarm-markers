@@ -48,7 +48,7 @@
         @dragend="drop('https://optim.tildacdn.com/tild3538-6561-4639-b230-306563373031/-/resize/302x/-/format/webp/11.png')" />
     </div>
     <yandex-map
-      :class="{ 'map-overlay': !draggable }"
+      :class="{ 'map-overlay': isShiftActive && isMarkerActive }"
       ref="map"
       v-model="mapModel"
       :settings="{
@@ -59,15 +59,30 @@
       }"
       width="100%"
       height="100vh"
-      @sizechange="sizechange"
-      @map-was-initialized="onInitMap"
     >
       <yandex-map-default-scheme-layer />
       <yandex-map-default-features-layer />
-      <yandex-map-marker v-for="marker in markers" :key="marker.iconSrc" :settings="{ coordinates: marker.coordinates, draggable: true, iconRotate: '64' }" position="top-center left-center" ref="marker">
-        <div class="pin--wrap" :style="activeMarker === marker ? `background-color: #ccc; ${radius}` : radius(marker)">
+      <yandex-map-listener :settings="{ onMouseDown: logMapClick, onMouseUp: () => {draggable = true; isMarkerActive = false}, onUpdate: scrollZoom }" />
+      <yandex-map-marker v-for="(marker, i) in markers" :key="marker.iconSrc" :settings="{ coordinates: marker.coordinates, draggable: true, iconRotate: '64' }" position="top-center left-center" ref="marker">
+        <div class="pin--wrap" @mousedown="rotate($event, marker, i)">
+          <yandex-map-feature
+            :style="`transform-origin: center; transform: rotate(${marker.rotate}deg)`"
+            :settings="{
+            id: marker.iconSrc,
+            draggable: false,
+            geometry: {
+              type: 'Polygon',
+              coordinates: [
+                marker.featuresCoords,
+              ],
+            },
+            style: {
+              fill: '#ccc',
+              stroke: [{ color: '#ccc', width: 0 }],
+            },
+          }"
+          />
           <img
-            @mousedown="rotate($event, marker)"
             class="pin"
             :src="marker.iconSrc"
             :style="`transform: rotate(${marker.rotate}deg); ${draggable ? 'cursor: crosshair' : 'cursor: nesw-resize'}`"
@@ -79,19 +94,42 @@
 </template>
 
 <script>
-import { VueYandexMaps } from 'vue-yandex-maps';
-import { YandexMap, YandexMapDefaultSchemeLayer, YandexMapDefaultFeaturesLayer, YandexMapMarker} from 'vue-yandex-maps';
+import { YandexMap, YandexMapDefaultSchemeLayer, YandexMapDefaultFeaturesLayer, YandexMapMarker, YandexMapFeature,
+YandexMapListener,
+} from 'vue-yandex-maps';
 import arc from 'svg-arc';
+import { initYmaps } from "vue-yandex-maps"
 export default {
   name: 'App',
   data: () => ({
+    isShiftActive: false,
+    isMarkerActive: false,
+    featuresCoords: [],
+    featureModel: null,
     mapModel: null,
     draggable: true,
     activeMarker: null,
+    activeFeature: 0,
     markers: [],
   }),
   mounted() {
-    console.log(`maps: ${VueYandexMaps.settings.value}`) //ref
+    initYmaps().then(() => {
+      // Yandex Maps API is now loaded and accessible
+      // You can initialize your map here
+      new window.ymaps3.YMapFeature({
+        geometry: {
+          type: 'Circle',
+          coordinates: [87.5,56.0],
+        },
+        style: {stroke: [{color: '#006efc', width: 4, dash: [5, 10]}], fill: 'rgba(56, 56, 219, 0.5)'}
+      });
+    });
+    window.addEventListener("keydown", (e) => {
+      this.isShiftActive = e.shiftKey;
+    });
+    window.addEventListener("keyup", () => {
+      this.isShiftActive = false;
+    });
     window.addEventListener("mouseup", () => {
       if (this.activeMarker) this.activeMarker.draggable = true;
       this.activeMarker = null;
@@ -106,23 +144,42 @@ export default {
         const map = this.mapModel;
         const mapChildren = map.children;
         const index = this.markers.findIndex(e => e === this.activeMarker);
-        const marker = mapChildren[index + 2];
+        const marker = mapChildren[index + 4 + 1 * index];
         const lat = marker.coordinates[0];
         const lon = marker.coordinates[1];
         console.log(`index: ${index}, lat: ${lat}, lon: ${lon}`);
+        // Координаты центра сектора
+        var centerCoordinates = [lat, lon];
+        const sectorPoints = this.updateCoords(centerCoordinates);
+        this.activeMarker.featuresCoords = sectorPoints;
         // send payload to backend
       }
     });
-    // setTimeout(() => {
-    //   alert(this.mapModel.events);
-    // }, 100);
   },
   methods: {
-    onInitMap() {
-      // alert("map init");
+    scrollZoom() {
+      // alert("scrollZoom");
     },
-    sizechange() {
-      // alert("size");
+    logMapClick(e) {
+      try {
+        if (e.type === "marker") this.draggable = false;
+        this.isMarkerActive = e.type === "marker";
+      } catch (e) {
+        // TODO
+      }
+      console.log(`this.isMarkerActive: ${this.isMarkerActive}`);
+    },
+    degrees_to_radians(degrees){
+      // Store the value of pi.
+      var pi = Math.PI;
+      // Multiply degrees by pi divided by 180 to convert to radians.
+      return degrees * (pi/180);
+    },
+    toLongitude(x) {
+      return x * 180 / 500;
+    },
+    toLatitude(y) {
+      return -y * 180 / 500 + 90;
     },
     radius(marker) {
       const sector = arc({
@@ -134,6 +191,7 @@ export default {
         // start: 0,
         // end: 45,
       });
+      // alert(sector);
       /*
        * rotated corner radius
        */
@@ -146,20 +204,92 @@ export default {
     getRndInteger(min, max) {
       return Math.floor(Math.random() * (max - min)) + min;
     },
-    rotate(event, marker) {
+    rotate(event, marker, i) {
       this.activeMarker = marker;
+      this.activeFeature = i;
       this.activeMarker.draggable = !event.shiftKey;
     },
+    updateCoords(coords) {
+      // Координаты центра сектора
+      var centerCoordinates = coords;
+      // Радиус сектора в метрах
+      // var radius = 0.01;
+      var radius = 0.5;
+      // var radius = 0.14;
+      // Углы начала и конца сектора в радианах
+      const start = 0;
+      const end = 90;
+      let delta = 0;
+      if (this.activeMarker) delta = this.activeMarker.rotate;
+      var startAngle = this.degrees_to_radians(start - delta); // Начало сектора с угла 45 градусов
+      var endAngle = this.degrees_to_radians(end - delta); // Конец сектора с угла 90 градусов
+      var sectorPoints = [];
+      if (end >= 360) {
+        // Создание координат вершин
+        for (var i = 0; i < 30; i++) {
+          let angle = 2 * Math.PI * i / 30;
+          let x = centerCoordinates[0] + radius * Math.cos(angle);
+          let y = centerCoordinates[1] + radius * Math.sin(angle) / 1.78;
+          sectorPoints.push([x, y]);
+        }
+      } else {
+        // Создаем массив точек сектора
+        sectorPoints.push(centerCoordinates); // Добавляем центр сектора
+        for (let angle = startAngle; angle <= endAngle; angle += 0.001) {
+            let x = centerCoordinates[0] + radius * Math.cos(angle);
+            let y = centerCoordinates[1] + radius * Math.sin(angle) / 1.78;
+            sectorPoints.push([x, y]);
+        }
+        sectorPoints.push(centerCoordinates); // Замыкаем сектор
+      }
+
+      // setTimeout(() => {
+      //   const objs = document.querySelectorAll(`g`);
+      //   const containers = [];
+      //   objs.forEach((o) => o.id.length ? containers.push(o) : false);
+      //   containers.map((container) => {
+      //     if (container.children.length > 1) {
+      //       let arcEl = document  .createElementNS("http://www.w3.org/2000/svg", "path");
+      //       const sector = arc({
+      //         x: container.getBoundingClientRect().width / 5000,
+      //         y: container.getBoundingClientRect().height / 5000,
+      //         r: container.getBoundingClientRect().width / 2,
+      //         start: 0,
+      //         end: 360,
+      //       });
+      //       arcEl.setAttribute("d", sector);
+      //       arcEl.setAttribute("stroke", "red");
+      //       container.appendChild(arcEl);
+      //     } else {
+      //       let arcEl = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      //       const sector = arc({
+      //         x: container.getBoundingClientRect().width / 500,
+      //         y: container.getBoundingClientRect().height / 500,
+      //         r: container.getBoundingClientRect().width / 2,
+      //         start: 0,
+      //         end: 360,
+      //       });
+      //       arcEl.setAttribute("d", sector);
+      //       arcEl.setAttribute("stroke", "red");
+      //       container.appendChild(arcEl);
+      //     }
+      //   });
+      // }, 1000);
+      return sectorPoints;
+    },
     drop(src) {
+      // Координаты центра сектора
+      var centerCoordinates = [37.617644, 55.755819];
+      const sectorPoints = this.updateCoords(centerCoordinates);
       const angleStart = this.getRndInteger(0, 360);
       const angleEnd = this.getRndInteger(angleStart, 360);
       this.markers.push({
-        coordinates: [37.617644, 55.755819],
+        featuresCoords: sectorPoints,
+        coordinates: centerCoordinates,
         iconSrc: src,
         onClick: () => {},
         draggable: true,
         rotate: 0,
-        // radius: this.radius(),
         radius: "",
         angleStart: angleStart,
         angleEnd: angleEnd,
@@ -171,11 +301,17 @@ export default {
     YandexMapDefaultSchemeLayer,
     YandexMapDefaultFeaturesLayer,
     YandexMapMarker,
+    YandexMapFeature,
+    // YandexMapClusterer,
+    YandexMapListener,
   },
   watch: {
     "$refs.map.zoom"() {
       // alert(val);
     },
+    isShiftActive(val) {
+      console.log(`shift: ${val}`);
+    }
   },
 }
 </script>
@@ -187,8 +323,8 @@ export default {
 }
 .pin--wrap {
   border-radius: 100%;
-  width: 250px;
-  height: 250px;
+  width: 75px;
+  height: 75px;
   background-color: transparent;
   display: flex;
   align-items: center;
@@ -199,7 +335,7 @@ export default {
   max-width: unset;
   width: 75px;
   height: 75px;
-  border-radius: 50%;
+  border-radius: 1000%;
   position: relative;
   z-index: 5;
 }
@@ -226,13 +362,16 @@ export default {
   background-size: 100%;
   background-repeat: no-repeat;
 }
-  .map-overlay {
-    position: relative;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none; /* Disables user interaction */
-    z-index: 0;
-  }
+.map-overlay {
+  position: relative;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* Disables user interaction */
+  z-index: 0;
+}
+ymaps g {
+  pointer-events: none;
+}
 </style>

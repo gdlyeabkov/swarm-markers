@@ -11,6 +11,8 @@
     "@minogin/vue-drag-resize-rotate": "^1.0.5",
     "core-js": "^3.8.3",
     "svg-arc": "^1.0.2",
+    "svg2geojson": "^0.7.1",
+    "timers-browserify": "^2.0.12",
     "vue": "^3.2.13",
     "vue-free-transform": "^1.0.11",
     "vue-yandex-maps": "^2.1.0"
