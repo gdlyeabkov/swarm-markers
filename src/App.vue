@@ -89,6 +89,37 @@
           />
         </div>
       </yandex-map-marker>
+      <!-- <yandex-map-default-marker
+        :settings="{
+          coordinates: [37.617644, 55.755819],
+          color: 'green',
+          popup: { position: 'top' },
+        }"
+      >
+        <template #popup="{ close }">
+          <div class="marker-popup">
+            <div class="marker-popup-header" @click="close">
+              Ц
+            </div>
+            <div class="marker-popup-body">
+              Москва, Измайловский проспект, дом 6, строение 20 <a href="https://yandex.ru/maps/213/moscow/house/izmaylovskiy_prospekt_2/Z04YcQNoSkwDQFtvfXt5d35qZw==/?ll=37.748019%2C55.786206&z=18">Яндекс карты</a>
+            </div>
+          </div>
+        </template>
+      </yandex-map-default-marker> -->
+      <yandex-map-marker
+        :position="`top left-center`"
+        :settings="{ coordinates: [37.617644, 55.755819], onClick: () => {}, zIndex: 1 }"
+      >
+        <div class="marker-popup">
+          <div class="marker-popup-header" @click="close">
+            Ц
+          </div>
+          <div class="marker-popup-body">
+            Москва, Измайловский проспект, дом 6, строение 20 <a href="https://yandex.ru/maps/213/moscow/house/izmaylovskiy_prospekt_2/Z04YcQNoSkwDQFtvfXt5d35qZw==/?ll=37.748019%2C55.786206&z=18">Яндекс карты</a>
+          </div>
+        </div>
+      </yandex-map-marker>
     </yandex-map>
   </div>
 </template>
@@ -96,6 +127,7 @@
 <script>
 import { YandexMap, YandexMapDefaultSchemeLayer, YandexMapDefaultFeaturesLayer, YandexMapMarker, YandexMapFeature,
 YandexMapListener,
+// YandexMapDefaultMarker
 } from 'vue-yandex-maps';
 import arc from 'svg-arc';
 import { initYmaps } from "vue-yandex-maps"
@@ -218,7 +250,7 @@ export default {
       // var radius = 0.14;
       // Углы начала и конца сектора в радианах
       const start = 0;
-      const end = 90;
+      const end = 45;
       let delta = 0;
       if (this.activeMarker) delta = this.activeMarker.rotate;
       var startAngle = this.degrees_to_radians(start - delta); // Начало сектора с угла 45 градусов
@@ -304,6 +336,7 @@ export default {
     YandexMapFeature,
     // YandexMapClusterer,
     YandexMapListener,
+    // YandexMapDefaultMarker,
   },
   watch: {
     "$refs.map.zoom"() {
@@ -373,5 +406,56 @@ export default {
 }
 ymaps g {
   pointer-events: none;
+}
+
+.marker-popup {
+  background: #fff;
+  color: black;
+  cursor: pointer;
+  font-size: 14px;
+  white-space: nowrap;
+  max-width: 305px;
+  min-width: 305px;
+  clip-path: polygon(0% 0%, 100% 0%, 100% 85%, 15% 85%, 25% 100%, 35% 85%, 0% 85%);
+  /* clip-path: circle(40%); */
+}
+
+.marker-popup-header {
+  padding: 23px 47px;
+  background-color: #E9662B;
+  color: #fff;
+  word-break: break-all;
+  font-size: 24px;
+}
+
+.marker-popup-body {
+  padding: 16px 47px;
+  word-break: break-all;
+  white-space: pre-wrap;
+  padding-bottom: 49px;
+}
+
+.marker-popup-body a {
+  color: #E9662B;
+}
+
+.marker {
+  background: green;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #fff;
+  padding: 10px 20px;
+  white-space: nowrap;
+}
+.popup {
+  position: absolute;
+  top: calc(100% + 10px);
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px;
+  color: black;
 }
 </style>
